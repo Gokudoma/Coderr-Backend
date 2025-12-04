@@ -1,7 +1,9 @@
-from rest_framework import serializers
 from django.db.models import Min
-from offers_app.models import Offer, OfferDetail
-from user_auth_app.api.serializers import RegistrationSerializer # Or a specific UserSerializer if you have one
+from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
+
+from offers_app.models import Offer, OfferDetail, Order, Review
+from user_auth_app.api.serializers import RegistrationSerializer
 
 
 class OfferDetailSerializer(serializers.ModelSerializer):
@@ -23,7 +25,6 @@ class OfferListSerializer(serializers.ModelSerializer):
     details = OfferDetailSerializer(many=True, read_only=True)
     min_price = serializers.SerializerMethodField()
     min_delivery_time = serializers.SerializerMethodField()
-    # We assume you might want a simplified user object here
     user_details = serializers.SerializerMethodField() 
 
     class Meta:
@@ -34,7 +35,6 @@ class OfferListSerializer(serializers.ModelSerializer):
         ]
 
     def get_min_price(self, obj):
-        # Calculates the minimum price from related details
         min_price = obj.details.aggregate(Min('price'))['price__min']
         return min_price if min_price is not None else 0
 
@@ -63,9 +63,6 @@ class OfferSerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'created_at', 'updated_at']
 
     def create(self, validated_data):
-        """
-        Create Offer and nested OfferDetails.
-        """
         details_data = validated_data.pop('details')
         offer = Offer.objects.create(**validated_data)
         
@@ -75,27 +72,75 @@ class OfferSerializer(serializers.ModelSerializer):
         return offer
 
     def update(self, instance, validated_data):
-        """
-        Update Offer and handle nested OfferDetails.
-        Strategy: Update fields on Offer, replace Details (or update if logic requires).
-        For simplicity and typical PUT/PATCH behavior on nested lists: 
-        We often clear and recreate or update specifically. 
-        Here we update offer fields.
-        """
         details_data = validated_data.pop('details', None)
         
-        # Update Offer fields
         instance.title = validated_data.get('title', instance.title)
         instance.description = validated_data.get('description', instance.description)
         instance.image = validated_data.get('image', instance.image)
         instance.save()
 
-        # Handle details update if provided
         if details_data is not None:
-            # Simple strategy: Delete old, create new. 
-            # (Note: In production, you might want to update existing IDs to preserve them)
             instance.details.all().delete()
             for detail_data in details_data:
                 OfferDetail.objects.create(offer=instance, **detail_data)
 
         return instance
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Reviews.
+    """
+    class Meta:
+        model = Review
+        fields = ['id', 'business_user', 'reviewer', 'rating', 'description', 'created_at', 'updated_at']
+        read_only_fields = ['reviewer', 'created_at', 'updated_at']
+
+    def create(self, validated_data):
+        validated_data['reviewer'] = self.context['request'].user
+        if Review.objects.filter(business_user=validated_data['business_user'], reviewer=validated_data['reviewer']).exists():
+            raise ValidationError("You have already reviewed this user.")
+        return super().create(validated_data)
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Orders.
+    Handles the creation logic by copying OfferDetail data.
+    """
+    offer_detail_id = serializers.IntegerField(write_only=True)
+
+    class Meta:
+        model = Order
+        fields = [
+            'id', 'customer_user', 'business_user', 'title', 'revisions', 
+            'delivery_time_in_days', 'price', 'features', 'offer_type', 
+            'status', 'created_at', 'updated_at', 'offer_detail_id'
+        ]
+        read_only_fields = [
+            'customer_user', 'business_user', 'title', 'revisions', 
+            'delivery_time_in_days', 'price', 'features', 'offer_type', 
+            'created_at', 'updated_at'
+        ]
+
+    def create(self, validated_data):
+        offer_detail_id = validated_data.pop('offer_detail_id')
+        
+        try:
+            offer_detail = OfferDetail.objects.get(pk=offer_detail_id)
+        except OfferDetail.DoesNotExist:
+            raise ValidationError({"offer_detail_id": "Invalid ID."})
+
+        order = Order.objects.create(
+            customer_user=self.context['request'].user,
+            business_user=offer_detail.offer.user,
+            title=offer_detail.title,
+            revisions=offer_detail.revisions,
+            delivery_time_in_days=offer_detail.delivery_time_in_days,
+            price=offer_detail.price,
+            features=offer_detail.features,
+            offer_type=offer_detail.offer_type,
+            status='in_progress',
+            **validated_data
+        )
+        return order
