@@ -187,16 +187,11 @@ class OrderAndReviewTests(APITestCase):
             offer_type="premium"
         )
 
-        # These URLs don't exist yet -> Expect "Reverse not found" error
+        # URLs
         self.order_list_url = reverse('order-list') 
         self.review_list_url = reverse('review-list') 
-        # For patching, we need an existing order URL (created in test)
 
     def test_customer_can_create_order(self):
-        """
-        Customer creates an order based on an offer detail ID.
-        Backend must copy details (price, title) from offer detail to order.
-        """
         self.client.force_authenticate(user=self.customer_user)
         data = {"offer_detail_id": self.detail.id}
         
@@ -212,19 +207,12 @@ class OrderAndReviewTests(APITestCase):
         self.assertEqual(order.status, 'in_progress')
 
     def test_business_cannot_create_order(self):
-        """
-        Business users cannot place orders.
-        """
         self.client.force_authenticate(user=self.business_user)
         data = {"offer_detail_id": self.detail.id}
         response = self.client.post(self.order_list_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_business_can_update_order_status(self):
-        """
-        The business owner of the order can update the status.
-        """
-        # Create order directly in DB
         order = Order.objects.create(
             customer_user=self.customer_user,
             business_user=self.business_user,
@@ -247,9 +235,6 @@ class OrderAndReviewTests(APITestCase):
         self.assertEqual(order.status, "completed")
 
     def test_create_review(self):
-        """
-        Customer can leave a review for a business user.
-        """
         self.client.force_authenticate(user=self.customer_user)
         data = {
             "business_user": self.business_user.id,
@@ -259,3 +244,92 @@ class OrderAndReviewTests(APITestCase):
         response = self.client.post(self.review_list_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Review.objects.count(), 1)
+
+
+class StatEndpointsTests(APITestCase):
+    """
+    Tests for statistical endpoints (Base Info, Order Counts).
+    """
+    def setUp(self):
+        self.business_user = User.objects.create_user(
+            username='stat_biz', email='stat@biz.com', password='pw', type='business'
+        )
+        self.customer_user = User.objects.create_user(
+            username='stat_cust', email='stat@cust.com', password='pw', type='customer'
+        )
+        
+        # Create Data for Stats
+        # 1. Offer
+        offer = Offer.objects.create(user=self.business_user, title="Offer", description="Desc")
+        # 2. Orders (1 in_progress, 1 completed)
+        Order.objects.create(
+            customer_user=self.customer_user, business_user=self.business_user,
+            title="Order 1", revisions=0, delivery_time_in_days=1, price=10, 
+            status='in_progress', offer_type='basic'
+        )
+        Order.objects.create(
+            customer_user=self.customer_user, business_user=self.business_user,
+            title="Order 2", revisions=0, delivery_time_in_days=1, price=10, 
+            status='completed', offer_type='basic'
+        )
+        # 3. Review (5 Stars)
+        Review.objects.create(
+            business_user=self.business_user, reviewer=self.customer_user,
+            rating=5, description="Good"
+        )
+
+    def test_base_info_public(self):
+        url = reverse('base-info')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['review_count'], 1)
+        self.assertEqual(response.data['offer_count'], 1)
+        self.assertEqual(response.data['average_rating'], 5.0)
+
+    def test_order_count(self):
+        self.client.force_authenticate(user=self.business_user)
+        url = reverse('order-count', kwargs={'pk': self.business_user.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['order_count'], 1) # Only in_progress
+
+    def test_completed_order_count(self):
+        self.client.force_authenticate(user=self.business_user)
+        url = reverse('completed-order-count', kwargs={'pk': self.business_user.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['completed_order_count'], 1) # Only completed
+
+
+class OfferUnhappyPathTests(APITestCase):
+    """
+    Tests for validation errors and permission denials in Offers/Orders/Reviews.
+    """
+    def setUp(self):
+        self.business = User.objects.create_user(username='biz_fail', email='biz_fail@t.com', password='pw', type='business')
+        self.customer = User.objects.create_user(username='cust_fail', email='cust_fail@t.com', password='pw', type='customer')
+        self.review_list_url = reverse('review-list')
+        self.order_list_url = reverse('order-list')
+
+    def test_review_duplicate_prevention(self):
+        """
+        Test that a user cannot review the same business twice.
+        """
+        self.client.force_authenticate(user=self.customer)
+        data = {"business_user": self.business.id, "rating": 5, "description": "First"}
+        
+        # 1. Erste Bewertung OK
+        self.client.post(self.review_list_url, data, format='json')
+        
+        # 2. Zweite Bewertung -> 400 Bad Request
+        response = self.client.post(self.review_list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_order_invalid_id(self):
+        """
+        Test creating order with non-existent offer detail ID.
+        """
+        self.client.force_authenticate(user=self.customer)
+        data = {"offer_detail_id": 9999} # Existiert nicht
+        response = self.client.post(self.order_list_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

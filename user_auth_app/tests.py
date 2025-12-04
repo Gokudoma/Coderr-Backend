@@ -1,7 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 User = get_user_model()
@@ -68,7 +67,6 @@ class UserProfileTests(APITestCase):
             location='Berlin',
             tel='123456789'
         )
-        # Diese URLs existieren noch nicht -> Test wird hier fehlschlagen (RED Phase)
         self.login_url = reverse('login')
         self.profile_detail_url = reverse('profile-detail', kwargs={'pk': self.user.pk})
         self.business_list_url = reverse('profile-business-list')
@@ -117,3 +115,42 @@ class UserProfileTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(len(response.data) >= 1) 
         self.assertEqual(response.data[0]['type'], 'business')
+
+
+class UserUnhappyPathTests(APITestCase):
+    """
+    Tests for error handling and edge cases (Unhappy Paths).
+    """
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='victim', email='victim@test.com', password='pw', type='customer'
+        )
+        self.attacker = User.objects.create_user(
+            username='attacker', email='attacker@test.com', password='pw', type='business'
+        )
+        self.profile_url = reverse('profile-detail', kwargs={'pk': self.user.pk})
+
+    def test_registration_passwords_mismatch(self):
+        """
+        Test validation error when passwords don't match.
+        """
+        url = reverse('registration')
+        data = {
+            "username": "fail",
+            "email": "fail@test.com",
+            "password": "password123",
+            "repeated_password": "wrongpassword", # Mismatch
+            "type": "customer"
+        }
+        response = self.client.post(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('password', response.data)
+
+    def test_update_other_profile_forbidden(self):
+        """
+        Test that editing someone else's profile is forbidden.
+        """
+        self.client.force_authenticate(user=self.attacker)
+        data = {"location": "Hacked"}
+        response = self.client.patch(self.profile_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

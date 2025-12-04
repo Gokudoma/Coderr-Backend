@@ -1,9 +1,13 @@
 from django.db import models
+from django.db.models import Avg
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from offers_app.models import Offer, OfferDetail, Order, Review
+from user_auth_app.models import CustomUser
 from .permissions import (
     IsBusinessUser, IsCustomer, IsOrderBusinessOwner, IsOrderParticipant,
     IsOwnerOrReadOnly
@@ -88,3 +92,46 @@ class ReviewViewSet(viewsets.ModelViewSet):
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsOwnerOrReadOnly()]
         return [IsAuthenticatedOrReadOnly()]
+
+
+class BaseInfoView(APIView):
+    """
+    Returns platform-wide statistics.
+    Public access.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        review_count = Review.objects.count()
+        average_rating = Review.objects.aggregate(Avg('rating'))['rating__avg'] or 0
+        business_profile_count = CustomUser.objects.filter(type='business').count()
+        offer_count = Offer.objects.count()
+
+        return Response({
+            "review_count": review_count,
+            "average_rating": round(average_rating, 1),
+            "business_profile_count": business_profile_count,
+            "offer_count": offer_count
+        })
+
+
+class OrderCountView(APIView):
+    """
+    Returns count of 'in_progress' orders for a specific business user.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        count = Order.objects.filter(business_user_id=pk, status='in_progress').count()
+        return Response({"order_count": count})
+
+
+class CompletedOrderCountView(APIView):
+    """
+    Returns count of 'completed' orders for a specific business user.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        count = Order.objects.filter(business_user_id=pk, status='completed').count()
+        return Response({"completed_order_count": count})
