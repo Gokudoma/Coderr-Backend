@@ -1,0 +1,17 @@
+[run]
+# Welche Pfade sollen gemessen werden? (Das aktuelle Verzeichnis)
+source = .
+# Welche Pfade sollen ignoriert werden?
+omit =
+    */migrations/*
+    */tests.py
+    */tests/*
+    manage.py
+    core/wsgi.py
+    core/asgi.py
+    venv/*
+    env/*
+
+[report]
+# Zeige fehlende Zeilen im Report an
+show_missing = True
