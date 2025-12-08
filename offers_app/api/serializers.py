@@ -4,6 +4,10 @@ from offers_app.models import Offer, OfferDetail, Order, Review
 
 
 class OfferDetailSerializer(serializers.ModelSerializer):
+    """
+    Serializer for full OfferDetail representation.
+    Used in POST/PATCH responses and /offerdetails/{id}/.
+    """
     class Meta:
         model = OfferDetail
         fields = [
@@ -13,6 +17,10 @@ class OfferDetailSerializer(serializers.ModelSerializer):
 
 
 class OfferDetailLinkSerializer(serializers.ModelSerializer):
+    """
+    Serializer for OfferDetail links.
+    Used in GET /offers/ and GET /offers/{id}/.
+    """
     url = serializers.HyperlinkedIdentityField(
         view_name='offerdetail-detail',
         read_only=True
@@ -24,6 +32,10 @@ class OfferDetailLinkSerializer(serializers.ModelSerializer):
 
 
 class OfferListSerializer(serializers.ModelSerializer):
+    """
+    Serializer for GET requests (List & Retrieve).
+    Shows details as links.
+    """
     user = serializers.IntegerField(source='user.id', read_only=True)
     details = OfferDetailLinkSerializer(many=True, read_only=True)
     min_price = serializers.SerializerMethodField()
@@ -59,6 +71,11 @@ class OfferListSerializer(serializers.ModelSerializer):
 
 
 class OfferSerializer(serializers.ModelSerializer):
+    """
+    Serializer for POST/PATCH.
+    Handles nested writes and returns full nested details in response.
+    Ensures existing details are updated in-place to preserve IDs.
+    """
     user = serializers.IntegerField(source='user.id', read_only=True)
     details = OfferDetailSerializer(many=True)
 
@@ -82,6 +99,7 @@ class OfferSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         details_data = validated_data.pop('details', None)
+
         instance.title = validated_data.get('title', instance.title)
         instance.description = validated_data.get(
             'description', instance.description
@@ -90,9 +108,37 @@ class OfferSerializer(serializers.ModelSerializer):
         instance.save()
 
         if details_data is not None:
-            instance.details.all().delete()
             for detail_data in details_data:
-                OfferDetail.objects.create(offer=instance, **detail_data)
+                offer_type = detail_data.get('offer_type')
+                if offer_type:
+                    existing_detail = instance.details.filter(
+                        offer_type=offer_type
+                    ).first()
+
+                    if existing_detail:
+                        existing_detail.title = detail_data.get(
+                            'title', existing_detail.title
+                        )
+                        existing_detail.revisions = detail_data.get(
+                            'revisions', existing_detail.revisions
+                        )
+                        existing_detail.delivery_time_in_days = detail_data.get(
+                            'delivery_time_in_days',
+                            existing_detail.delivery_time_in_days
+                        )
+                        existing_detail.price = detail_data.get(
+                            'price', existing_detail.price
+                        )
+                        existing_detail.features = detail_data.get(
+                            'features', existing_detail.features
+                        )
+                        existing_detail.save()
+                    else:
+                        # Fallback if specific type doesn't exist yet
+                        OfferDetail.objects.create(
+                            offer=instance, **detail_data
+                        )
+
         return instance
 
 
