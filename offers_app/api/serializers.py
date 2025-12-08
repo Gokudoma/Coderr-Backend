@@ -89,10 +89,8 @@ class OfferSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         details_data = validated_data.pop('details')
-        offer = Offer.objects.create(
-            user=self.context['request'].user,
-            **validated_data
-        )
+        offer = Offer.objects.create(**validated_data)
+        
         for detail_data in details_data:
             OfferDetail.objects.create(offer=offer, **detail_data)
         return offer
@@ -134,11 +132,9 @@ class OfferSerializer(serializers.ModelSerializer):
                         )
                         existing_detail.save()
                     else:
-                        # Fallback if specific type doesn't exist yet
                         OfferDetail.objects.create(
                             offer=instance, **detail_data
                         )
-
         return instance
 
 
