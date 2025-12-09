@@ -37,7 +37,7 @@ class OfferModelTest(TestCase):
             title="Logo Design",
             description="Professional logos"
         )
-        
+
         detail = OfferDetail.objects.create(
             offer=offer,
             title="Basic Package",
@@ -109,7 +109,9 @@ class OfferAPITests(APITestCase):
 
         # URLs
         self.offer_list_url = reverse('offer-list')
-        self.offer_detail_url = reverse('offer-detail', kwargs={'pk': self.offer.pk})
+        self.offer_detail_url = reverse(
+            'offer-detail', kwargs={'pk': self.offer.pk}
+        )
 
     def test_list_offers(self):
         response = self.client.get(self.offer_list_url)
@@ -148,7 +150,9 @@ class OfferAPITests(APITestCase):
     def test_update_offer_as_owner(self):
         self.client.force_authenticate(user=self.business_user)
         data = {"title": "Updated Title"}
-        response = self.client.patch(self.offer_detail_url, data, format='json')
+        response = self.client.patch(
+            self.offer_detail_url, data, format='json'
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offer.refresh_from_db()
         self.assertEqual(self.offer.title, "Updated Title")
@@ -168,15 +172,23 @@ class OrderAndReviewTests(APITestCase):
     def setUp(self):
         # Users
         self.business_user = User.objects.create_user(
-            username='biz_order', email='biz_order@test.com', password='pw', type='business'
+            username='biz_order',
+            email='biz_order@test.com',
+            password='pw',
+            type='business'
         )
         self.customer_user = User.objects.create_user(
-            username='cust_order', email='cust_order@test.com', password='pw', type='customer'
+            username='cust_order',
+            email='cust_order@test.com',
+            password='pw',
+            type='customer'
         )
-        
+
         # Setup Offer & Detail to buy
         self.offer = Offer.objects.create(
-            user=self.business_user, title="Web Design", description="Cool stuff"
+            user=self.business_user,
+            title="Web Design",
+            description="Cool stuff"
         )
         self.detail = OfferDetail.objects.create(
             offer=self.offer,
@@ -188,18 +200,54 @@ class OrderAndReviewTests(APITestCase):
         )
 
         # URLs
-        self.order_list_url = reverse('order-list') 
-        self.review_list_url = reverse('review-list') 
+        self.order_list_url = reverse('order-list')
+        self.review_list_url = reverse('review-list')
+
+    def test_list_orders(self):
+        """
+        Test listing orders (GET /api/orders/).
+        Matches the screenshot requirements: returns list of orders for logged-in user.
+        """
+        # Create a sample order
+        order = Order.objects.create(
+            customer_user=self.customer_user,
+            business_user=self.business_user,
+            title="Snapshot Title",
+            revisions=1,
+            delivery_time_in_days=1,
+            price=10.00,
+            features=["Feature A"],
+            offer_type="basic",
+            status="in_progress"
+        )
+        
+        # Authenticate as customer and get list
+        self.client.force_authenticate(user=self.customer_user)
+        response = self.client.get(self.order_list_url)
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(len(response.data) > 0)
+        
+        # Verify fields match the screenshot structure
+        data = response.data[0]
+        self.assertEqual(data['id'], order.id)
+        self.assertEqual(data['title'], "Snapshot Title")
+        # Ensure customer/business are IDs as shown in screenshot
+        self.assertEqual(data['customer_user'], self.customer_user.id)
+        self.assertEqual(data['business_user'], self.business_user.id)
+        self.assertIn('created_at', data)
+        self.assertIn('updated_at', data)
+        self.assertIn('features', data)
 
     def test_customer_can_create_order(self):
         self.client.force_authenticate(user=self.customer_user)
         data = {"offer_detail_id": self.detail.id}
-        
+
         response = self.client.post(self.order_list_url, data, format='json')
-        
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Order.objects.count(), 1)
-        
+
         order = Order.objects.first()
         self.assertEqual(order.title, self.detail.title)
         self.assertEqual(order.price, self.detail.price)
@@ -223,13 +271,13 @@ class OrderAndReviewTests(APITestCase):
             offer_type="basic",
             status="in_progress"
         )
-        
+
         self.client.force_authenticate(user=self.business_user)
         url = reverse('order-detail', kwargs={'pk': order.pk})
         data = {"status": "completed"}
-        
+
         response = self.client.patch(url, data, format='json')
-        
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         order.refresh_from_db()
         self.assertEqual(order.status, "completed")
@@ -252,30 +300,50 @@ class StatEndpointsTests(APITestCase):
     """
     def setUp(self):
         self.business_user = User.objects.create_user(
-            username='stat_biz', email='stat@biz.com', password='pw', type='business'
+            username='stat_biz',
+            email='stat@biz.com',
+            password='pw',
+            type='business'
         )
         self.customer_user = User.objects.create_user(
-            username='stat_cust', email='stat@cust.com', password='pw', type='customer'
+            username='stat_cust',
+            email='stat@cust.com',
+            password='pw',
+            type='customer'
         )
-        
+
         # Create Data for Stats
         # 1. Offer
-        offer = Offer.objects.create(user=self.business_user, title="Offer", description="Desc")
+        Offer.objects.create(
+            user=self.business_user, title="Offer", description="Desc"
+        )
         # 2. Orders (1 in_progress, 1 completed)
         Order.objects.create(
-            customer_user=self.customer_user, business_user=self.business_user,
-            title="Order 1", revisions=0, delivery_time_in_days=1, price=10, 
-            status='in_progress', offer_type='basic'
+            customer_user=self.customer_user,
+            business_user=self.business_user,
+            title="Order 1",
+            revisions=0,
+            delivery_time_in_days=1,
+            price=10,
+            status='in_progress',
+            offer_type='basic'
         )
         Order.objects.create(
-            customer_user=self.customer_user, business_user=self.business_user,
-            title="Order 2", revisions=0, delivery_time_in_days=1, price=10, 
-            status='completed', offer_type='basic'
+            customer_user=self.customer_user,
+            business_user=self.business_user,
+            title="Order 2",
+            revisions=0,
+            delivery_time_in_days=1,
+            price=10,
+            status='completed',
+            offer_type='basic'
         )
         # 3. Review (5 Stars)
         Review.objects.create(
-            business_user=self.business_user, reviewer=self.customer_user,
-            rating=5, description="Good"
+            business_user=self.business_user,
+            reviewer=self.customer_user,
+            rating=5,
+            description="Good"
         )
 
     def test_base_info_public(self):
@@ -291,14 +359,18 @@ class StatEndpointsTests(APITestCase):
         url = reverse('order-count', kwargs={'pk': self.business_user.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['order_count'], 1) # Only in_progress
+        # Only in_progress
+        self.assertEqual(response.data['order_count'], 1)
 
     def test_completed_order_count(self):
         self.client.force_authenticate(user=self.business_user)
-        url = reverse('completed-order-count', kwargs={'pk': self.business_user.pk})
+        url = reverse(
+            'completed-order-count', kwargs={'pk': self.business_user.pk}
+        )
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['completed_order_count'], 1) # Only completed
+        # Only completed
+        self.assertEqual(response.data['completed_order_count'], 1)
 
 
 class OfferUnhappyPathTests(APITestCase):
@@ -306,8 +378,18 @@ class OfferUnhappyPathTests(APITestCase):
     Tests for validation errors and permission denials in Offers/Orders/Reviews.
     """
     def setUp(self):
-        self.business = User.objects.create_user(username='biz_fail', email='biz_fail@t.com', password='pw', type='business')
-        self.customer = User.objects.create_user(username='cust_fail', email='cust_fail@t.com', password='pw', type='customer')
+        self.business = User.objects.create_user(
+            username='biz_fail',
+            email='biz_fail@t.com',
+            password='pw',
+            type='business'
+        )
+        self.customer = User.objects.create_user(
+            username='cust_fail',
+            email='cust_fail@t.com',
+            password='pw',
+            type='customer'
+        )
         self.review_list_url = reverse('review-list')
         self.order_list_url = reverse('order-list')
 
@@ -316,12 +398,16 @@ class OfferUnhappyPathTests(APITestCase):
         Test that a user cannot review the same business twice.
         """
         self.client.force_authenticate(user=self.customer)
-        data = {"business_user": self.business.id, "rating": 5, "description": "First"}
-        
-        # 1. Erste Bewertung OK
+        data = {
+            "business_user": self.business.id,
+            "rating": 5,
+            "description": "First"
+        }
+
+        # 1. First review OK
         self.client.post(self.review_list_url, data, format='json')
-        
-        # 2. Zweite Bewertung -> 400 Bad Request
+
+        # 2. Second review -> 400 Bad Request
         response = self.client.post(self.review_list_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -330,6 +416,6 @@ class OfferUnhappyPathTests(APITestCase):
         Test creating order with non-existent offer detail ID.
         """
         self.client.force_authenticate(user=self.customer)
-        data = {"offer_detail_id": 9999} # Existiert nicht
+        data = {"offer_detail_id": 9999}  # Does not exist
         response = self.client.post(self.order_list_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

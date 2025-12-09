@@ -35,19 +35,20 @@ class OfferListSerializer(serializers.ModelSerializer):
     """
     Serializer for GET requests (List & Retrieve).
     Shows details as links.
+    Matches image_a1fc11.png:
+    - Includes: user, created_at, updated_at, min_price
+    - Excludes: user_details
     """
     user = serializers.IntegerField(source='user.id', read_only=True)
     details = OfferDetailLinkSerializer(many=True, read_only=True)
     min_price = serializers.SerializerMethodField()
     min_delivery_time = serializers.SerializerMethodField()
-    user_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Offer
         fields = [
             'id', 'user', 'title', 'image', 'description', 'created_at',
-            'updated_at', 'details', 'min_price', 'min_delivery_time',
-            'user_details'
+            'updated_at', 'details', 'min_price', 'min_delivery_time'
         ]
 
     def get_min_price(self, obj):
@@ -62,30 +63,22 @@ class OfferListSerializer(serializers.ModelSerializer):
         )['delivery_time_in_days__min']
         return val if val is not None else 0
 
-    def get_user_details(self, obj):
-        return {
-            "first_name": obj.user.first_name,
-            "last_name": obj.user.last_name,
-            "username": obj.user.username
-        }
-
 
 class OfferSerializer(serializers.ModelSerializer):
     """
     Serializer for POST/PATCH.
-    Handles nested writes and returns full nested details in response.
-    Ensures existing details are updated in-place to preserve IDs.
+    Matches image_a12234.png (PATCH response):
+    - Includes: id, title, image, description, details
+    - Excludes: user, created_at, updated_at (clean response for updates)
     """
-    user = serializers.IntegerField(source='user.id', read_only=True)
     details = OfferDetailSerializer(many=True)
 
     class Meta:
         model = Offer
         fields = [
-            'id', 'user', 'title', 'image', 'description',
-            'created_at', 'updated_at', 'details'
+            'id', 'title', 'image', 'description', 'details'
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        # user, created_at, updated_at are removed from fields to match doc screenshot
 
     def create(self, validated_data):
         details_data = validated_data.pop('details')

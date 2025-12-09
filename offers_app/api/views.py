@@ -85,6 +85,11 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        # Allow admins to see all orders so they can delete them
+        if user.is_staff:
+            return Order.objects.all()
+        
+        # Regular users only see their own orders
         if user.is_authenticated:
             return Order.objects.filter(
                 Q(customer_user=user) | Q(business_user=user)

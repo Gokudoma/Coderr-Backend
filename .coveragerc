@@ -1,7 +1,7 @@
 [run]
-# Welche Pfade sollen gemessen werden? (Das aktuelle Verzeichnis)
+# Which paths should be measured? (The current directory)
 source = .
-# Welche Pfade sollen ignoriert werden?
+# Which paths should be ignored?
 omit =
     */migrations/*
     */tests.py
@@ -13,5 +13,5 @@ omit =
     env/*
 
 [report]
-# Zeige fehlende Zeilen im Report an
+# Show missing lines in the report
 show_missing = True

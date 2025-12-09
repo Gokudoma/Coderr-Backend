@@ -7,7 +7,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .serializers import (
-    RegistrationSerializer, LoginSerializer, UserProfileSerializer
+    RegistrationSerializer, LoginSerializer, UserProfileSerializer,
+    BusinessProfileListSerializer, CustomerProfileListSerializer
 )
 
 User = get_user_model()
@@ -66,12 +67,20 @@ class UserProfileDetailView(generics.RetrieveUpdateAPIView):
 
 
 class BusinessProfileListView(generics.ListAPIView):
+    """
+    Returns a list of business profiles.
+    Uses BusinessProfileListSerializer to match doc structure.
+    """
     queryset = User.objects.filter(type='business')
-    serializer_class = UserProfileSerializer
+    serializer_class = BusinessProfileListSerializer
     permission_classes = [IsAuthenticated]
 
 
 class CustomerProfileListView(generics.ListAPIView):
+    """
+    Returns a list of customer profiles.
+    Uses CustomerProfileListSerializer to match doc structure (no location/tel).
+    """
     queryset = User.objects.filter(type='customer')
-    serializer_class = UserProfileSerializer
+    serializer_class = CustomerProfileListSerializer
     permission_classes = [IsAuthenticated]
