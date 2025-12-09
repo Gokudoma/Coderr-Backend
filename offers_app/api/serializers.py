@@ -35,7 +35,7 @@ class OfferListSerializer(serializers.ModelSerializer):
     """
     Serializer for GET requests (List & Retrieve).
     Shows details as links.
-    Matches image_a1fc11.png:
+    Matches documentation:
     - Includes: user, created_at, updated_at, min_price
     - Excludes: user_details
     """
@@ -67,9 +67,9 @@ class OfferListSerializer(serializers.ModelSerializer):
 class OfferSerializer(serializers.ModelSerializer):
     """
     Serializer for POST/PATCH.
-    Matches image_a12234.png (PATCH response):
+    Matches documentation (clean response):
     - Includes: id, title, image, description, details
-    - Excludes: user, created_at, updated_at (clean response for updates)
+    - Excludes: user, created_at, updated_at
     """
     details = OfferDetailSerializer(many=True)
 
@@ -78,7 +78,7 @@ class OfferSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'image', 'description', 'details'
         ]
-        # user, created_at, updated_at are removed from fields to match doc screenshot
+        # user, created_at, updated_at are intentionally removed from fields
 
     def create(self, validated_data):
         details_data = validated_data.pop('details')
