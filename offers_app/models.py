@@ -37,10 +37,16 @@ class OfferDetail(models.Model):
         related_name='details'
     )
     title = models.CharField(max_length=255)
-    revisions = models.IntegerField(default=-1)  # -1 could mean infinite/undefined
+    
+    """ -1 could mean infinite/undefined """
+    revisions = models.IntegerField(default=-1)
+    
     delivery_time_in_days = models.PositiveIntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    features = models.JSONField(default=list)  # Requires SQLite 3.9+ (Standard in newer Python)
+    
+    """ Requires SQLite 3.9+ (Standard in newer Python) """
+    features = models.JSONField(default=list)
+    
     offer_type = models.CharField(max_length=20, choices=OFFER_TYPE_CHOICES)
 
     def __str__(self):
@@ -73,7 +79,10 @@ class Order(models.Model):
     delivery_time_in_days = models.PositiveIntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
     features = models.JSONField(default=list)
-    offer_type = models.CharField(max_length=20)  # Just string here, validation happens elsewhere
+    
+    """ Just string here, validation happens elsewhere """
+    offer_type = models.CharField(max_length=20)
+    
     status = models.CharField(
         max_length=20, 
         choices=STATUS_CHOICES, 
@@ -106,7 +115,7 @@ class Review(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        # Ensures one review per business user per reviewer
+        """ Ensures one review per business user per reviewer """
         unique_together = ('business_user', 'reviewer')
 
     def __str__(self):

@@ -31,7 +31,8 @@ class OfferViewSet(viewsets.ModelViewSet):
         'user': ['exact'], 
     }
     search_fields = ['title', 'description']
-    # Removed min_price from ordering to prevent 500 error
+    
+    """ Removed min_price from ordering to prevent 500 error """
     ordering_fields = ['updated_at']
 
     def get_serializer_class(self):
@@ -74,7 +75,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Order.objects.none()
 
     def get_permissions(self):
-        # Added IsAuthenticated first to ensure 401 instead of 404
+        """ Added IsAuthenticated first to ensure 401 instead of 404 """
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()] 
         if self.action in ['update', 'partial_update']:
@@ -88,12 +89,13 @@ class ReviewViewSet(viewsets.ModelViewSet):
     """
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
-    # Added filtering backend to allow fetching reviews for specific users
+    
+    """ Added filtering backend to allow fetching reviews for specific users """
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['business_user', 'reviewer']
 
     def get_permissions(self):
-        # Added IsAuthenticated first
+        """ Added IsAuthenticated first """
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()]
         if self.action in ['update', 'partial_update', 'destroy']:
@@ -129,7 +131,7 @@ class OrderCountView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        # Ensure user exists -> 404 if not
+        """ Ensure user exists -> 404 if not """
         get_object_or_404(CustomUser, pk=pk)
         count = Order.objects.filter(business_user_id=pk, status='in_progress').count()
         return Response({"order_count": count})
@@ -142,7 +144,7 @@ class CompletedOrderCountView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        # Ensure user exists -> 404 if not
+        """ Ensure user exists -> 404 if not """
         get_object_or_404(CustomUser, pk=pk)
         count = Order.objects.filter(business_user_id=pk, status='completed').count()
         return Response({"completed_order_count": count})

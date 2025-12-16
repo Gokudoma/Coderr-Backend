@@ -5,6 +5,10 @@ User = get_user_model()
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
+    """
+    Serializer for user registration.
+    Handles password confirmation and user creation.
+    """
     password = serializers.CharField(
         write_only=True,
         style={'input_type': 'password'}
@@ -21,9 +25,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         if data.get('password') != data.get('repeated_password'):
-            raise serializers.ValidationError(
-                {"password": "Passwords must match."}
-            )
+            raise serializers.ValidationError({"password": "Passwords must match."})
         return data
 
     def create(self, validated_data):
@@ -37,25 +39,31 @@ class RegistrationSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
+    """
+    Serializer for user login.
+    Validates email and password credentials.
+    """
+    email = serializers.EmailField()
     password = serializers.CharField(style={'input_type': 'password'})
 
     def validate(self, data):
-        username = data.get('username')
+        email = data.get('email')
         password = data.get('password')
 
-        if username and password:
+        if email and password:
             user = authenticate(
                 request=self.context.get('request'),
-                username=username,
+                username=email,
                 password=password
             )
             if not user:
-                msg = "Unable to log in with provided credentials."
-                raise serializers.ValidationError(msg)
+                raise serializers.ValidationError(
+                    "Unable to log in with provided credentials."
+                )
         else:
-            msg = "Must include 'username' and 'password'."
-            raise serializers.ValidationError(msg)
+            raise serializers.ValidationError(
+                "Must include 'email' and 'password'."
+            )
 
         data['user'] = user
         return data
@@ -63,8 +71,8 @@ class LoginSerializer(serializers.Serializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     """
-    Serializer for the detailed profile view (Owner perspective).
-    Includes email and created_at.
+    Serializer for viewing and updating user profiles.
+    Used for the detailed profile view (Owner perspective).
     """
     user = serializers.IntegerField(source='id', read_only=True)
     created_at = serializers.DateTimeField(
@@ -84,9 +92,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'location', 'tel', 'description', 'working_hours',
             'type', 'email', 'created_at'
         ]
-        read_only_fields = [
-            'user', 'email', 'type', 'created_at', 'username'
-        ]
+        read_only_fields = ['user', 'type', 'created_at', 'username']
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -103,8 +109,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class BusinessProfileListSerializer(serializers.ModelSerializer):
     """
     Serializer specifically for the Business Profile List.
-    Matches the documentation JSON structure (includes location, tel, etc.).
-    Excludes email and created_at.
+    Matches the documentation JSON structure.
     """
     user = serializers.IntegerField(source='id', read_only=True)
     location = serializers.CharField(required=False, allow_blank=True)
@@ -123,7 +128,6 @@ class BusinessProfileListSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Ensure null fields are empty strings
         fields = [
             'first_name', 'last_name', 'location', 'tel',
             'description', 'working_hours', 'file'
@@ -137,15 +141,12 @@ class BusinessProfileListSerializer(serializers.ModelSerializer):
 class CustomerProfileListSerializer(serializers.ModelSerializer):
     """
     Serializer specifically for the Customer Profile List.
-    Matches the documentation JSON structure:
-    - Includes 'uploaded_at' (mapped from date_joined).
-    - Excludes location, tel, description, working_hours.
+    Matches the documentation JSON structure.
     """
     user = serializers.IntegerField(source='id', read_only=True)
     uploaded_at = serializers.DateTimeField(
         source='date_joined',
         read_only=True,
-        # Format matching ISO-like string in docs
         format="%Y-%m-%dT%H:%M:%S"
     )
 
@@ -159,8 +160,6 @@ class CustomerProfileListSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Ensure null fields are empty strings
-        # Only check fields present in this serializer
         fields = ['first_name', 'last_name', 'file']
         for field in fields:
             if data.get(field) is None:
