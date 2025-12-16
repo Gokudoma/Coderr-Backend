@@ -8,6 +8,7 @@ class IsOwnerOrReadOnly(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
             return True
+        # For Reviews/Offers the owner is 'user' or 'reviewer'
         if hasattr(obj, 'user'):
             return obj.user == request.user
         if hasattr(obj, 'reviewer'):
@@ -20,11 +21,9 @@ class IsBusinessUser(BasePermission):
     Allows access only to business users.
     """
     def has_permission(self, request, view):
-        return (
-            request.user and
-            request.user.is_authenticated and
-            request.user.type == 'business'
-        )
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.type == 'business'
 
 
 class IsCustomer(BasePermission):
@@ -32,23 +31,17 @@ class IsCustomer(BasePermission):
     Allows access only to customer users.
     """
     def has_permission(self, request, view):
-        return (
-            request.user and
-            request.user.is_authenticated and
-            request.user.type == 'customer'
-        )
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return request.user.type == 'customer'
 
 
 class IsOrderParticipant(BasePermission):
     """
-    Allows access if the user is either the customer or
-    the business partner of the order.
+    Allows access if the user is either the customer or the business partner of the order.
     """
     def has_object_permission(self, request, view, obj):
-        return (
-            obj.customer_user == request.user or
-            obj.business_user == request.user
-        )
+        return obj.customer_user == request.user or obj.business_user == request.user
 
 
 class IsOrderBusinessOwner(BasePermission):
