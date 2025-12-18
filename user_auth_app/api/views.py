@@ -15,6 +15,10 @@ User = get_user_model()
 
 
 class RegistrationView(APIView):
+    """
+    Endpoint for user registration.
+    Allows new users (customer or business) to register and receive an auth token.
+    """
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -32,6 +36,10 @@ class RegistrationView(APIView):
 
 
 class CustomLoginView(ObtainAuthToken):
+    """
+    Endpoint for user login.
+    Validates credentials and returns an auth token along with user details.
+    """
     permission_classes = [AllowAny]
     serializer_class = LoginSerializer
 
