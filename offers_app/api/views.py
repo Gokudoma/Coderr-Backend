@@ -3,7 +3,12 @@ from django.db.models import Min, Avg
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets
-from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import (
+    AllowAny, 
+    IsAuthenticated, 
+    IsAuthenticatedOrReadOnly, 
+    IsAdminUser 
+)
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -75,12 +80,15 @@ class OfferDetailViewSet(viewsets.ReadOnlyModelViewSet):
 class OrderViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing orders.
-    Restricts visibility to order participants.
+    Restricts visibility to order participants, but allows Staff/Admins to see all.
     """
     serializer_class = OrderSerializer
     
     def get_queryset(self):
         user = self.request.user
+        if user.is_staff:
+            return Order.objects.all()
+            
         if user.is_authenticated:
             return Order.objects.filter(
                 models.Q(customer_user=user) | models.Q(business_user=user)
@@ -88,8 +96,17 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Order.objects.none()
 
     def get_permissions(self):
+        """
+        Permissions based on requirements:
+        - Create: Customer only
+        - Update: Business Owner only (status updates)
+        - Delete: Admin/Staff only
+        - List/Retrieve: Participants only
+        """
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()] 
+        if self.action == 'destroy':
+            return [IsAuthenticated(), IsAdminUser()]
         if self.action in ['update', 'partial_update']:
             return [IsAuthenticated(), IsOrderBusinessOwner()] 
         return [IsAuthenticated(), IsOrderParticipant()]
