@@ -8,7 +8,12 @@ from offers_app.models import Offer, OfferDetail, Order, Review
 class OfferDetailSerializer(serializers.ModelSerializer):
     """
     Serializer for the OfferDetail endpoint and nested write operations.
+    Includes validation to ensure 400 Bad Request on invalid input.
     """
+    # Adding basic validation to trigger 400 errors on bad input
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01)
+    delivery_time_in_days = serializers.IntegerField(min_value=1)
+
     class Meta:
         model = OfferDetail
         fields = [
@@ -91,6 +96,7 @@ class OfferRetrieveSerializer(BaseOfferSerializer):
 class OfferWriteSerializer(serializers.ModelSerializer):
     """
     Serializer for creating (POST) and updating (PATCH) offers.
+    Returns full nested details in the response.
     """
     details = OfferDetailSerializer(many=True)
 
@@ -125,6 +131,9 @@ class OfferWriteSerializer(serializers.ModelSerializer):
         return instance
 
     def to_representation(self, instance):
+        """
+        Manually construct the response to match the documentation requirements.
+        """
         data = super().to_representation(instance)
         data['id'] = instance.id
         data['details'] = OfferDetailSerializer(instance.details.all(), many=True).data
@@ -134,7 +143,6 @@ class OfferWriteSerializer(serializers.ModelSerializer):
 class ReviewSerializer(serializers.ModelSerializer):
     """
     Serializer for Reviews.
-    Ensures business_user cannot be changed on update.
     """
     class Meta:
         model = Review

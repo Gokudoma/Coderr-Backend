@@ -35,13 +35,13 @@ class OfferViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_class = OfferFilter
     
-    # Removed min_price from ordering_fields list to prevent 500 error if not annotated
+    # We allow ordering by calculated fields and standard fields
     ordering_fields = ['min_price', 'updated_at']
     search_fields = ['title', 'description']
 
     def get_queryset(self):
         """
-        Annotate queryset with min_price and min_delivery_time for filtering/ordering.
+        Annotate queryset with min_price and min_delivery_time to fix 500 error on filtering.
         """
         return Offer.objects.annotate(
             min_price=Min('details__price'),
@@ -98,13 +98,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Order.objects.none()
 
     def get_permissions(self):
-        """
-        Permissions based on requirements:
-        - Create: Customer only
-        - Update: Business Owner only (status updates)
-        - Delete: Admin/Staff only
-        - List/Retrieve: Participants only
-        """
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()] 
         if self.action == 'destroy':
@@ -117,6 +110,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 class ReviewViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing reviews.
+    Only authenticated users can see reviews (Requirement for 401 check).
     """
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
@@ -130,7 +124,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsCustomer()]
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsOwnerOrReadOnly()]
-        return [IsAuthenticatedOrReadOnly()]
+        return [IsAuthenticated()]
 
 
 class BaseInfoView(APIView):

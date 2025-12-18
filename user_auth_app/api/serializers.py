@@ -79,13 +79,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
     """
     Serializer for viewing and updating user profiles.
     Used for the detailed profile view.
-    Matches the order and structure of the documentation screenshots exactly.
     """
     user = serializers.IntegerField(source='id', read_only=True)
     created_at = serializers.DateTimeField(
         source='date_joined',
         read_only=True,
-        format="%Y-%m-%dT%H:%M:%S%z"
+        format='%Y-%m-%dT%H:%M:%SZ'
     )
     location = serializers.CharField(required=False, allow_blank=True)
     tel = serializers.CharField(required=False, allow_blank=True)
@@ -103,8 +102,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         """
-        Ensures that null values for specific fields are returned as empty strings
-        to match the API documentation requirements.
+        Ensures that null values for specific fields are returned as empty strings.
         """
         data = super().to_representation(instance)
         fields_to_check = [
@@ -120,7 +118,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class BusinessProfileListSerializer(serializers.ModelSerializer):
     """
     Serializer specifically for the Business Profile List.
-    Matches the documentation JSON structure and order.
     """
     user = serializers.IntegerField(source='id', read_only=True)
     location = serializers.CharField(required=False, allow_blank=True)
