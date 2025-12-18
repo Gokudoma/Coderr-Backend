@@ -52,6 +52,11 @@ class CustomLoginView(ObtainAuthToken):
 
 
 class UserProfileDetailView(generics.RetrieveUpdateAPIView):
+    """
+    View to retrieve or update a user profile.
+    GET: Allowed for any authenticated user.
+    PATCH: Allowed only if the request user matches the profile user.
+    """
     queryset = User.objects.all()
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
@@ -68,8 +73,7 @@ class UserProfileDetailView(generics.RetrieveUpdateAPIView):
 
 class BusinessProfileListView(generics.ListAPIView):
     """
-    Returns a list of business profiles.
-    Uses BusinessProfileListSerializer to match doc structure.
+    Returns a list of all business profiles.
     """
     queryset = User.objects.filter(type='business')
     serializer_class = BusinessProfileListSerializer
@@ -78,8 +82,7 @@ class BusinessProfileListView(generics.ListAPIView):
 
 class CustomerProfileListView(generics.ListAPIView):
     """
-    Returns a list of customer profiles.
-    Uses CustomerProfileListSerializer to match doc structure (no location/tel).
+    Returns a list of all customer profiles.
     """
     queryset = User.objects.filter(type='customer')
     serializer_class = CustomerProfileListSerializer

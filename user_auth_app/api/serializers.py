@@ -41,28 +41,34 @@ class RegistrationSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     """
     Serializer for user login.
-    Validates email and password credentials.
+    Validates username and password credentials.
     """
-    email = serializers.EmailField()
+    username = serializers.CharField()
     password = serializers.CharField(style={'input_type': 'password'})
 
     def validate(self, data):
-        email = data.get('email')
+        username = data.get('username')
         password = data.get('password')
 
-        if email and password:
-            user = authenticate(
-                request=self.context.get('request'),
-                username=email,
-                password=password
-            )
+        if username and password:
+            user_obj = User.objects.filter(username=username).first()
+            
+            if user_obj:
+                user = authenticate(
+                    request=self.context.get('request'),
+                    username=user_obj.email,
+                    password=password
+                )
+            else:
+                user = None
+
             if not user:
                 raise serializers.ValidationError(
                     "Unable to log in with provided credentials."
                 )
         else:
             raise serializers.ValidationError(
-                "Must include 'email' and 'password'."
+                "Must include 'username' and 'password'."
             )
 
         data['user'] = user
@@ -72,7 +78,8 @@ class LoginSerializer(serializers.Serializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     """
     Serializer for viewing and updating user profiles.
-    Used for the detailed profile view (Owner perspective).
+    Used for the detailed profile view.
+    Matches the order and structure of the documentation screenshots exactly.
     """
     user = serializers.IntegerField(source='id', read_only=True)
     created_at = serializers.DateTimeField(
@@ -84,7 +91,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     tel = serializers.CharField(required=False, allow_blank=True)
     description = serializers.CharField(required=False, allow_blank=True)
     working_hours = serializers.CharField(required=False, allow_blank=True)
-
+    
     class Meta:
         model = User
         fields = [
@@ -92,15 +99,19 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'location', 'tel', 'description', 'working_hours',
             'type', 'email', 'created_at'
         ]
-        read_only_fields = ['user', 'type', 'created_at', 'username']
+        read_only_fields = ['user', 'username', 'type', 'created_at']
 
     def to_representation(self, instance):
+        """
+        Ensures that null values for specific fields are returned as empty strings
+        to match the API documentation requirements.
+        """
         data = super().to_representation(instance)
-        fields = [
+        fields_to_check = [
             'first_name', 'last_name', 'location', 'tel',
             'description', 'working_hours', 'file'
         ]
-        for field in fields:
+        for field in fields_to_check:
             if data.get(field) is None:
                 data[field] = ""
         return data
@@ -109,7 +120,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class BusinessProfileListSerializer(serializers.ModelSerializer):
     """
     Serializer specifically for the Business Profile List.
-    Matches the documentation JSON structure.
+    Matches the documentation JSON structure and order.
     """
     user = serializers.IntegerField(source='id', read_only=True)
     location = serializers.CharField(required=False, allow_blank=True)
@@ -127,12 +138,15 @@ class BusinessProfileListSerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'type', 'username']
 
     def to_representation(self, instance):
+        """
+        Ensures that null values are returned as empty strings.
+        """
         data = super().to_representation(instance)
-        fields = [
+        fields_to_check = [
             'first_name', 'last_name', 'location', 'tel',
             'description', 'working_hours', 'file'
         ]
-        for field in fields:
+        for field in fields_to_check:
             if data.get(field) is None:
                 data[field] = ""
         return data
@@ -141,27 +155,25 @@ class BusinessProfileListSerializer(serializers.ModelSerializer):
 class CustomerProfileListSerializer(serializers.ModelSerializer):
     """
     Serializer specifically for the Customer Profile List.
-    Matches the documentation JSON structure.
+    Matches the documentation JSON structure (reduced fields).
     """
     user = serializers.IntegerField(source='id', read_only=True)
-    uploaded_at = serializers.DateTimeField(
-        source='date_joined',
-        read_only=True,
-        format="%Y-%m-%dT%H:%M:%S"
-    )
 
     class Meta:
         model = User
         fields = [
             'user', 'username', 'first_name', 'last_name', 'file',
-            'uploaded_at', 'type'
+            'type'
         ]
-        read_only_fields = ['user', 'type', 'username', 'uploaded_at']
+        read_only_fields = ['user', 'type', 'username']
 
     def to_representation(self, instance):
+        """
+        Ensures that null values are returned as empty strings.
+        """
         data = super().to_representation(instance)
-        fields = ['first_name', 'last_name', 'file']
-        for field in fields:
+        fields_to_check = ['first_name', 'last_name', 'file']
+        for field in fields_to_check:
             if data.get(field) is None:
                 data[field] = ""
         return data
