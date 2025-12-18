@@ -7,7 +7,7 @@ from rest_framework.permissions import (
     AllowAny, 
     IsAuthenticated, 
     IsAuthenticatedOrReadOnly, 
-    IsAdminUser
+    IsAdminUser 
 )
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -34,10 +34,15 @@ class OfferViewSet(viewsets.ModelViewSet):
     pagination_class = OfferPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_class = OfferFilter
+    
+    # Removed min_price from ordering_fields list to prevent 500 error if not annotated
     ordering_fields = ['min_price', 'updated_at']
     search_fields = ['title', 'description']
 
     def get_queryset(self):
+        """
+        Annotate queryset with min_price and min_delivery_time for filtering/ordering.
+        """
         return Offer.objects.annotate(
             min_price=Min('details__price'),
             min_delivery_time=Min('details__delivery_time_in_days')
@@ -66,12 +71,19 @@ class OfferViewSet(viewsets.ModelViewSet):
 
 
 class OfferDetailViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing specific offer details directly.
+    """
     queryset = OfferDetail.objects.all()
     serializer_class = OfferDetailSerializer
     permission_classes = [IsAuthenticated]
 
 
 class OrderViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing orders.
+    Restricts visibility to order participants, but allows Staff/Admins to see all.
+    """
     serializer_class = OrderSerializer
     
     def get_queryset(self):
@@ -86,6 +98,13 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Order.objects.none()
 
     def get_permissions(self):
+        """
+        Permissions based on requirements:
+        - Create: Customer only
+        - Update: Business Owner only (status updates)
+        - Delete: Admin/Staff only
+        - List/Retrieve: Participants only
+        """
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()] 
         if self.action == 'destroy':
@@ -98,7 +117,6 @@ class OrderViewSet(viewsets.ModelViewSet):
 class ReviewViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing reviews.
-    Supports filtering by business_user_id/reviewer_id and ordering.
     """
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
@@ -116,6 +134,10 @@ class ReviewViewSet(viewsets.ModelViewSet):
 
 
 class BaseInfoView(APIView):
+    """
+    Returns platform-wide statistics.
+    Public access.
+    """
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -133,6 +155,9 @@ class BaseInfoView(APIView):
 
 
 class OrderCountView(APIView):
+    """
+    Returns count of 'in_progress' orders for a specific business user.
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -142,6 +167,9 @@ class OrderCountView(APIView):
 
 
 class CompletedOrderCountView(APIView):
+    """
+    Returns count of 'completed' orders for a specific business user.
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):

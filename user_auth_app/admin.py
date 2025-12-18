@@ -9,15 +9,15 @@ class CustomUserAdmin(UserAdmin):
     """
     model = CustomUser
     
-    """ Display these fields in the user list """
+    # Display these fields in the user list
     list_display = ['username', 'email', 'type', 'is_staff']
     
-    """ Add custom fields to the Edit User page """
+    # Add custom fields to the Edit User page
     fieldsets = UserAdmin.fieldsets + (
         ('Profile Info', {'fields': ('type', 'file', 'location', 'tel', 'description', 'working_hours')}),
     )
     
-    """ Add custom fields to the Add User page """
+    # Add custom fields to the Add User page
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('Profile Info', {'fields': ('email', 'type')}),
     )

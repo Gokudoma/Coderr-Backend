@@ -7,19 +7,19 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-""" Load environment variables """
+# Load environment variables
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-""" Security """
+# Security
 SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG') == 'True'
 ALLOWED_HOSTS = []
 
-""" Application definition """
+# Application definition
 
-""" Third party apps (corsheaders, rest_framework, etc.) and Local apps (user_auth_app, offers_app) """
+# Third party apps (corsheaders, rest_framework, etc.) and Local apps (user_auth_app, offers_app)
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -35,7 +35,7 @@ INSTALLED_APPS = [
     'offers_app',
 ]
 
-""" Added CORS middleware """
+# Middleware Configuration
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -66,7 +66,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-""" Database """
+# Database
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -74,7 +74,7 @@ DATABASES = {
     }
 }
 
-""" Password validation """
+# Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -90,17 +90,17 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-""" Internationalization """
+# Internationalization
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-""" Static files """
+# Static files
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-""" DRF Configuration """
+# DRF Configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
@@ -110,8 +110,8 @@ REST_FRAMEWORK = {
     ],
 }
 
-""" CORS """
+# CORS
 CORS_ALLOW_ALL_ORIGINS = True
 
-""" Custom User Model """
+# Custom User Model
 AUTH_USER_MODEL = 'user_auth_app.CustomUser'
