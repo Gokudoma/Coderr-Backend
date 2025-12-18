@@ -8,7 +8,6 @@ from offers_app.models import Offer, OfferDetail, Order, Review
 class OfferDetailSerializer(serializers.ModelSerializer):
     """
     Serializer for the OfferDetail endpoint and nested write operations.
-    Displays full details of a package.
     """
     class Meta:
         model = OfferDetail
@@ -21,7 +20,6 @@ class OfferDetailSerializer(serializers.ModelSerializer):
 class OfferDetailLinkSerializer(serializers.ModelSerializer):
     """
     Serializer for listing OfferDetails as simple links within an Offer.
-    Used in List and Retrieve views.
     """
     url = serializers.HyperlinkedIdentityField(
         view_name='offerdetail-detail',
@@ -56,7 +54,6 @@ class BaseOfferSerializer(serializers.ModelSerializer):
 class OfferListSerializer(BaseOfferSerializer):
     """
     Serializer for GET /api/offers/
-    Includes user_details and links to details.
     """
     details = OfferDetailLinkSerializer(many=True, read_only=True)
     user_details = serializers.SerializerMethodField()
@@ -80,7 +77,6 @@ class OfferListSerializer(BaseOfferSerializer):
 class OfferRetrieveSerializer(BaseOfferSerializer):
     """
     Serializer for GET /api/offers/{pk}/
-    Does NOT include user_details, but uses links for details.
     """
     details = OfferDetailLinkSerializer(many=True, read_only=True)
 
@@ -95,7 +91,6 @@ class OfferRetrieveSerializer(BaseOfferSerializer):
 class OfferWriteSerializer(serializers.ModelSerializer):
     """
     Serializer for creating (POST) and updating (PATCH) offers.
-    Returns full nested details in the response.
     """
     details = OfferDetailSerializer(many=True)
 
@@ -130,10 +125,6 @@ class OfferWriteSerializer(serializers.ModelSerializer):
         return instance
 
     def to_representation(self, instance):
-        """
-        Manually construct the response to match the documentation requirements:
-        Show full details (not links) and include ID after create/update.
-        """
         data = super().to_representation(instance)
         data['id'] = instance.id
         data['details'] = OfferDetailSerializer(instance.details.all(), many=True).data
@@ -143,6 +134,7 @@ class OfferWriteSerializer(serializers.ModelSerializer):
 class ReviewSerializer(serializers.ModelSerializer):
     """
     Serializer for Reviews.
+    Ensures business_user cannot be changed on update.
     """
     class Meta:
         model = Review
@@ -161,12 +153,15 @@ class ReviewSerializer(serializers.ModelSerializer):
         if exists:
             raise ValidationError("You have already reviewed this user.")
         return super().create(validated_data)
+    
+    def update(self, instance, validated_data):
+        validated_data.pop('business_user', None)
+        return super().update(instance, validated_data)
 
 
 class OrderSerializer(serializers.ModelSerializer):
     """
     Serializer for Orders.
-    Handles the creation logic by copying OfferDetail data.
     """
     offer_detail_id = serializers.IntegerField(write_only=True)
 

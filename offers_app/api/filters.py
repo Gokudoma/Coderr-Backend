@@ -1,5 +1,5 @@
 import django_filters
-from offers_app.models import Offer
+from offers_app.models import Offer, Review
 
 
 class OfferFilter(django_filters.FilterSet):
@@ -19,10 +19,20 @@ class OfferFilter(django_filters.FilterSet):
         fields = ['creator_id', 'min_price', 'max_delivery_time']
 
     def filter_search(self, queryset, name, value):
-        """
-        Search in title and description.
-        """
         return queryset.filter(
             django_filters.models.Q(title__icontains=value) |
             django_filters.models.Q(description__icontains=value)
         )
+
+
+class ReviewFilter(django_filters.FilterSet):
+    """
+    FilterSet for Review listing.
+    Maps query parameters 'business_user_id' and 'reviewer_id' to model fields.
+    """
+    business_user_id = django_filters.NumberFilter(field_name='business_user')
+    reviewer_id = django_filters.NumberFilter(field_name='reviewer')
+
+    class Meta:
+        model = Review
+        fields = ['business_user_id', 'reviewer_id']
