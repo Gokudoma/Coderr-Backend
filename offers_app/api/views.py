@@ -3,12 +3,7 @@ from django.db.models import Min, Avg
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets
-from rest_framework.permissions import (
-    AllowAny, 
-    IsAuthenticated, 
-    IsAuthenticatedOrReadOnly, 
-    IsAdminUser 
-)
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -21,8 +16,8 @@ from .permissions import (
     IsOwnerOrReadOnly
 )
 from .serializers import (
-    OfferDetailSerializer, OfferListSerializer, OfferRetrieveSerializer,
-    OfferWriteSerializer, OrderSerializer, ReviewSerializer
+    OfferDetailSerializer, OfferListSerializer, OfferSerializer,
+    OrderSerializer, ReviewSerializer
 )
 
 
@@ -41,7 +36,8 @@ class OfferViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Annotate queryset with min_price and min_delivery_time to fix 500 error on filtering.
+        Annotate queryset with min_price and min_delivery_time.
+        This is crucial for the filters to work without throwing 500 errors.
         """
         return Offer.objects.annotate(
             min_price=Min('details__price'),
@@ -51,9 +47,7 @@ class OfferViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'list':
             return OfferListSerializer
-        if self.action == 'retrieve':
-            return OfferRetrieveSerializer
-        return OfferWriteSerializer
+        return OfferSerializer
 
     def get_permissions(self):
         if self.action == 'list':
@@ -98,6 +92,13 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Order.objects.none()
 
     def get_permissions(self):
+        """
+        Permissions based on requirements:
+        - Create: Customer only
+        - Update: Business Owner only (status updates)
+        - Delete: Admin/Staff only
+        - List/Retrieve: Participants only
+        """
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()] 
         if self.action == 'destroy':
@@ -110,7 +111,6 @@ class OrderViewSet(viewsets.ModelViewSet):
 class ReviewViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing reviews.
-    Only authenticated users can see reviews (Requirement for 401 check).
     """
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
@@ -124,7 +124,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsCustomer()]
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsOwnerOrReadOnly()]
-        return [IsAuthenticated()]
+        return [IsAuthenticatedOrReadOnly()]
 
 
 class BaseInfoView(APIView):

@@ -10,21 +10,25 @@ class OfferDetailSerializer(serializers.ModelSerializer):
     Serializer for the OfferDetail endpoint and nested write operations.
     Includes validation to ensure 400 Bad Request on invalid input.
     """
-    # Adding basic validation to trigger 400 errors on bad input
+    url = serializers.HyperlinkedIdentityField(view_name='offerdetail-detail', read_only=True)
+    
+    # Validation: Ensure positive numbers to pass unhappy path tests (400 vs 200)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01)
     delivery_time_in_days = serializers.IntegerField(min_value=1)
+    revisions = serializers.IntegerField(min_value=-1) # -1 is allowed for infinite
 
     class Meta:
         model = OfferDetail
         fields = [
-            'id', 'title', 'revisions', 'delivery_time_in_days',
-            'price', 'features', 'offer_type'
+            'id', 'title', 'revisions', 'delivery_time_in_days', 
+            'price', 'features', 'offer_type', 'url'
         ]
 
 
 class OfferDetailLinkSerializer(serializers.ModelSerializer):
     """
     Serializer for listing OfferDetails as simple links within an Offer.
+    Used in List and Retrieve views.
     """
     url = serializers.HyperlinkedIdentityField(
         view_name='offerdetail-detail',
@@ -59,6 +63,7 @@ class BaseOfferSerializer(serializers.ModelSerializer):
 class OfferListSerializer(BaseOfferSerializer):
     """
     Serializer for GET /api/offers/
+    Includes user_details and links to details.
     """
     details = OfferDetailLinkSerializer(many=True, read_only=True)
     user_details = serializers.SerializerMethodField()
@@ -79,21 +84,7 @@ class OfferListSerializer(BaseOfferSerializer):
         }
 
 
-class OfferRetrieveSerializer(BaseOfferSerializer):
-    """
-    Serializer for GET /api/offers/{pk}/
-    """
-    details = OfferDetailLinkSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Offer
-        fields = [
-            'id', 'user', 'title', 'image', 'description', 'created_at',
-            'updated_at', 'details', 'min_price', 'min_delivery_time'
-        ]
-
-
-class OfferWriteSerializer(serializers.ModelSerializer):
+class OfferSerializer(serializers.ModelSerializer):
     """
     Serializer for creating (POST) and updating (PATCH) offers.
     Returns full nested details in the response.
@@ -103,8 +94,10 @@ class OfferWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Offer
         fields = [
-            'id', 'title', 'image', 'description', 'details'
+            'id', 'user', 'title', 'image', 'description', 'created_at', 
+            'updated_at', 'details'
         ]
+        read_only_fields = ['user', 'created_at', 'updated_at']
 
     def create(self, validated_data):
         details_data = validated_data.pop('details')
@@ -131,12 +124,9 @@ class OfferWriteSerializer(serializers.ModelSerializer):
         return instance
 
     def to_representation(self, instance):
-        """
-        Manually construct the response to match the documentation requirements.
-        """
         data = super().to_representation(instance)
         data['id'] = instance.id
-        data['details'] = OfferDetailSerializer(instance.details.all(), many=True).data
+        data['details'] = OfferDetailSerializer(instance.details.all(), many=True, context=self.context).data
         return data
 
 
