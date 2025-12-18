@@ -3,44 +3,71 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from offers_app.models import Offer, OfferDetail, Order, Review
-from user_auth_app.api.serializers import RegistrationSerializer
 
 
 class OfferDetailSerializer(serializers.ModelSerializer):
     """
-    Serializer for OfferDetail.
+    Serializer for the OfferDetail endpoint and nested write operations.
+    Displays full details of a package.
     """
-    url = serializers.HyperlinkedIdentityField(view_name='offerdetail-detail')
+    class Meta:
+        model = OfferDetail
+        fields = [
+            'id', 'title', 'revisions', 'delivery_time_in_days',
+            'price', 'features', 'offer_type'
+        ]
+
+
+class OfferDetailLinkSerializer(serializers.ModelSerializer):
+    """
+    Serializer for listing OfferDetails as simple links within an Offer.
+    Used in List and Retrieve views.
+    """
+    url = serializers.HyperlinkedIdentityField(
+        view_name='offerdetail-detail',
+        read_only=True
+    )
 
     class Meta:
         model = OfferDetail
-        fields = ['id', 'title', 'revisions', 'delivery_time_in_days', 'price', 'features', 'offer_type', 'url']
+        fields = ['id', 'url']
 
 
-class OfferListSerializer(serializers.ModelSerializer):
+class BaseOfferSerializer(serializers.ModelSerializer):
     """
-    Serializer for listing offers.
-    Includes simplified details (links) and calculated fields.
+    Base Serializer containing shared calculated fields.
     """
-    details = OfferDetailSerializer(many=True, read_only=True)
     min_price = serializers.SerializerMethodField()
     min_delivery_time = serializers.SerializerMethodField()
-    user_details = serializers.SerializerMethodField() 
+
+    def get_min_price(self, obj):
+        if hasattr(obj, 'min_price'):
+            return obj.min_price if obj.min_price is not None else 0
+        val = obj.details.aggregate(Min('price'))['price__min']
+        return val if val is not None else 0
+
+    def get_min_delivery_time(self, obj):
+        if hasattr(obj, 'min_delivery_time'):
+            return obj.min_delivery_time if obj.min_delivery_time is not None else 0
+        val = obj.details.aggregate(Min('delivery_time_in_days'))['delivery_time_in_days__min']
+        return val if val is not None else 0
+
+
+class OfferListSerializer(BaseOfferSerializer):
+    """
+    Serializer for GET /api/offers/
+    Includes user_details and links to details.
+    """
+    details = OfferDetailLinkSerializer(many=True, read_only=True)
+    user_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Offer
         fields = [
-            'id', 'user', 'title', 'image', 'description', 'created_at', 
-            'updated_at', 'details', 'min_price', 'min_delivery_time', 'user_details'
+            'id', 'user', 'title', 'image', 'description', 'created_at',
+            'updated_at', 'details', 'min_price', 'min_delivery_time',
+            'user_details'
         ]
-
-    def get_min_price(self, obj):
-        min_price = obj.details.aggregate(Min('price'))['price__min']
-        return min_price if min_price is not None else 0
-
-    def get_min_delivery_time(self, obj):
-        min_time = obj.details.aggregate(Min('delivery_time_in_days'))['delivery_time_in_days__min']
-        return min_time if min_time is not None else 0
 
     def get_user_details(self, obj):
         return {
@@ -50,17 +77,33 @@ class OfferListSerializer(serializers.ModelSerializer):
         }
 
 
-class OfferSerializer(serializers.ModelSerializer):
+class OfferRetrieveSerializer(BaseOfferSerializer):
     """
-    Serializer for creating, updating, and retrieving single offers.
-    Handles nested write operations for OfferDetails.
+    Serializer for GET /api/offers/{pk}/
+    Does NOT include user_details, but uses links for details.
+    """
+    details = OfferDetailLinkSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Offer
+        fields = [
+            'id', 'user', 'title', 'image', 'description', 'created_at',
+            'updated_at', 'details', 'min_price', 'min_delivery_time'
+        ]
+
+
+class OfferWriteSerializer(serializers.ModelSerializer):
+    """
+    Serializer for creating (POST) and updating (PATCH) offers.
+    Returns full nested details in the response.
     """
     details = OfferDetailSerializer(many=True)
 
     class Meta:
         model = Offer
-        fields = ['id', 'user', 'title', 'image', 'description', 'created_at', 'updated_at', 'details']
-        read_only_fields = ['user', 'created_at', 'updated_at']
+        fields = [
+            'id', 'title', 'image', 'description', 'details'
+        ]
 
     def create(self, validated_data):
         details_data = validated_data.pop('details')
@@ -86,6 +129,16 @@ class OfferSerializer(serializers.ModelSerializer):
 
         return instance
 
+    def to_representation(self, instance):
+        """
+        Manually construct the response to match the documentation requirements:
+        Show full details (not links) and include ID after create/update.
+        """
+        data = super().to_representation(instance)
+        data['id'] = instance.id
+        data['details'] = OfferDetailSerializer(instance.details.all(), many=True).data
+        return data
+
 
 class ReviewSerializer(serializers.ModelSerializer):
     """
@@ -93,12 +146,19 @@ class ReviewSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Review
-        fields = ['id', 'business_user', 'reviewer', 'rating', 'description', 'created_at', 'updated_at']
+        fields = [
+            'id', 'business_user', 'reviewer', 'rating', 
+            'description', 'created_at', 'updated_at'
+        ]
         read_only_fields = ['reviewer', 'created_at', 'updated_at']
 
     def create(self, validated_data):
         validated_data['reviewer'] = self.context['request'].user
-        if Review.objects.filter(business_user=validated_data['business_user'], reviewer=validated_data['reviewer']).exists():
+        exists = Review.objects.filter(
+            business_user=validated_data['business_user'],
+            reviewer=validated_data['reviewer']
+        ).exists()
+        if exists:
             raise ValidationError("You have already reviewed this user.")
         return super().create(validated_data)
 

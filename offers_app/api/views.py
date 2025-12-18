@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models import Avg
+from django.db.models import Min, Avg
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets
@@ -9,13 +9,15 @@ from rest_framework.views import APIView
 
 from offers_app.models import Offer, OfferDetail, Order, Review
 from user_auth_app.models import CustomUser
+from .filters import OfferFilter
+from .pagination import OfferPagination
 from .permissions import (
     IsBusinessUser, IsCustomer, IsOrderBusinessOwner, IsOrderParticipant,
     IsOwnerOrReadOnly
 )
 from .serializers import (
-    OfferDetailSerializer, OfferListSerializer, OfferSerializer,
-    OrderSerializer, ReviewSerializer
+    OfferDetailSerializer, OfferListSerializer, OfferRetrieveSerializer,
+    OfferWriteSerializer, OrderSerializer, ReviewSerializer
 )
 
 
@@ -24,28 +26,38 @@ class OfferViewSet(viewsets.ModelViewSet):
     ViewSet for viewing and editing offers.
     Supports filtering, searching, and ordering.
     """
-    queryset = Offer.objects.all().order_by('-updated_at')
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    
-    filterset_fields = {
-        'user': ['exact'], 
-    }
+    pagination_class = OfferPagination
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    filterset_class = OfferFilter
+    ordering_fields = ['min_price', 'updated_at']
     search_fields = ['title', 'description']
-    
-    """ Removed min_price from ordering to prevent 500 error """
-    ordering_fields = ['updated_at']
+
+    def get_queryset(self):
+        """
+        Annotate queryset with min_price and min_delivery_time for filtering/ordering.
+        """
+        return Offer.objects.annotate(
+            min_price=Min('details__price'),
+            min_delivery_time=Min('details__delivery_time_in_days')
+        ).order_by('-updated_at')
 
     def get_serializer_class(self):
         if self.action == 'list':
             return OfferListSerializer
-        return OfferSerializer
+        if self.action == 'retrieve':
+            return OfferRetrieveSerializer
+        return OfferWriteSerializer
 
     def get_permissions(self):
+        if self.action == 'list':
+            return [AllowAny()]
+        if self.action == 'retrieve':
+            return [IsAuthenticated()]
         if self.action == 'create':
             return [IsAuthenticated(), IsBusinessUser()]
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsOwnerOrReadOnly()]
-        return [IsAuthenticatedOrReadOnly()]
+        return [IsAuthenticated()]
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -57,6 +69,7 @@ class OfferDetailViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = OfferDetail.objects.all()
     serializer_class = OfferDetailSerializer
+    permission_classes = [IsAuthenticated]
 
 
 class OrderViewSet(viewsets.ModelViewSet):
@@ -75,7 +88,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Order.objects.none()
 
     def get_permissions(self):
-        """ Added IsAuthenticated first to ensure 401 instead of 404 """
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()] 
         if self.action in ['update', 'partial_update']:
@@ -90,12 +102,10 @@ class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
     
-    """ Added filtering backend to allow fetching reviews for specific users """
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['business_user', 'reviewer']
 
     def get_permissions(self):
-        """ Added IsAuthenticated first """
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()]
         if self.action in ['update', 'partial_update', 'destroy']:
@@ -131,7 +141,6 @@ class OrderCountView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        """ Ensure user exists -> 404 if not """
         get_object_or_404(CustomUser, pk=pk)
         count = Order.objects.filter(business_user_id=pk, status='in_progress').count()
         return Response({"order_count": count})
@@ -144,7 +153,6 @@ class CompletedOrderCountView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        """ Ensure user exists -> 404 if not """
         get_object_or_404(CustomUser, pk=pk)
         count = Order.objects.filter(business_user_id=pk, status='completed').count()
         return Response({"completed_order_count": count})
