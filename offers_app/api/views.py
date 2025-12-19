@@ -35,13 +35,14 @@ class OfferViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_class = OfferFilter
     
+    # We allow ordering by calculated fields and standard fields
     ordering_fields = ['min_price', 'updated_at']
     search_fields = ['title', 'description']
 
     def get_queryset(self):
         """
         Annotate queryset with min_price and min_delivery_time.
-        Crucial for sorting and filtering to work without 500 errors.
+        This is crucial for the filters to work without throwing 500 errors.
         """
         return Offer.objects.annotate(
             min_price=Min('details__price'),
@@ -96,6 +97,13 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Order.objects.none()
 
     def get_permissions(self):
+        """
+        Permissions based on requirements:
+        - Create: Customer only
+        - Update: Business Owner only (status updates)
+        - Delete: Admin/Staff only
+        - List/Retrieve: Participants only
+        """
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()] 
         if self.action == 'destroy':

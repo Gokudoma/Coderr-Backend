@@ -1,5 +1,5 @@
 import django_filters
-from django.db.models import Q  
+from django.db.models import Q
 from offers_app.models import Offer, Review
 
 
