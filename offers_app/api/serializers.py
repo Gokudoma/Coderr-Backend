@@ -8,14 +8,14 @@ from offers_app.models import Offer, OfferDetail, Order, Review
 class OfferDetailSerializer(serializers.ModelSerializer):
     """
     Serializer for the OfferDetail endpoint and nested write operations.
-    Includes validation to ensure 400 Bad Request on invalid input.
+    Includes strict validation to ensure 400 Bad Request on invalid input.
     """
     url = serializers.HyperlinkedIdentityField(view_name='offerdetail-detail', read_only=True)
     
-    # Validation: Ensure positive numbers to pass unhappy path tests (400 vs 200)
+    # Validation: Ensure positive numbers
     price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01)
     delivery_time_in_days = serializers.IntegerField(min_value=1)
-    revisions = serializers.IntegerField(min_value=-1) # -1 is allowed for infinite
+    revisions = serializers.IntegerField(min_value=-1)
 
     class Meta:
         model = OfferDetail
@@ -23,12 +23,15 @@ class OfferDetailSerializer(serializers.ModelSerializer):
             'id', 'title', 'revisions', 'delivery_time_in_days', 
             'price', 'features', 'offer_type', 'url'
         ]
+        # Important: Force offer_type to be required to trigger 400 error if missing
+        extra_kwargs = {
+            'offer_type': {'required': True}
+        }
 
 
 class OfferDetailLinkSerializer(serializers.ModelSerializer):
     """
     Serializer for listing OfferDetails as simple links within an Offer.
-    Used in List and Retrieve views.
     """
     url = serializers.HyperlinkedIdentityField(
         view_name='offerdetail-detail',
@@ -48,14 +51,17 @@ class BaseOfferSerializer(serializers.ModelSerializer):
     min_delivery_time = serializers.SerializerMethodField()
 
     def get_min_price(self, obj):
-        if hasattr(obj, 'min_price'):
-            return obj.min_price if obj.min_price is not None else 0
+        # Fix for "Not a Number" / NaN error:
+        # If the object already has the annotated value, use it.
+        if hasattr(obj, 'min_price') and obj.min_price is not None:
+            return obj.min_price
+        # Fallback calculation if annotation is missing
         val = obj.details.aggregate(Min('price'))['price__min']
-        return val if val is not None else 0
+        return val if val is not None else 0.0
 
     def get_min_delivery_time(self, obj):
-        if hasattr(obj, 'min_delivery_time'):
-            return obj.min_delivery_time if obj.min_delivery_time is not None else 0
+        if hasattr(obj, 'min_delivery_time') and obj.min_delivery_time is not None:
+            return obj.min_delivery_time
         val = obj.details.aggregate(Min('delivery_time_in_days'))['delivery_time_in_days__min']
         return val if val is not None else 0
 
@@ -124,9 +130,14 @@ class OfferSerializer(serializers.ModelSerializer):
         return instance
 
     def to_representation(self, instance):
+        # We need to pass the context so nested Hyperlinked fields work correctly
         data = super().to_representation(instance)
         data['id'] = instance.id
-        data['details'] = OfferDetailSerializer(instance.details.all(), many=True, context=self.context).data
+        data['details'] = OfferDetailSerializer(
+            instance.details.all(), 
+            many=True, 
+            context=self.context
+        ).data
         return data
 
 

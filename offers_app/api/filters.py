@@ -1,4 +1,5 @@
 import django_filters
+from django.db.models import Q  
 from offers_app.models import Offer, Review
 
 
@@ -19,9 +20,11 @@ class OfferFilter(django_filters.FilterSet):
         fields = ['creator_id', 'min_price', 'max_delivery_time']
 
     def filter_search(self, queryset, name, value):
+        """
+        Search in title and description using Django's Q objects.
+        """
         return queryset.filter(
-            django_filters.models.Q(title__icontains=value) |
-            django_filters.models.Q(description__icontains=value)
+            Q(title__icontains=value) | Q(description__icontains=value)
         )
 
 

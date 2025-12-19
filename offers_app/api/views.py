@@ -3,7 +3,12 @@ from django.db.models import Min, Avg
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets
-from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly, IsAdminUser
+from rest_framework.permissions import (
+    AllowAny, 
+    IsAuthenticated, 
+    IsAuthenticatedOrReadOnly, 
+    IsAdminUser 
+)
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -30,14 +35,13 @@ class OfferViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_class = OfferFilter
     
-    # We allow ordering by calculated fields and standard fields
     ordering_fields = ['min_price', 'updated_at']
     search_fields = ['title', 'description']
 
     def get_queryset(self):
         """
         Annotate queryset with min_price and min_delivery_time.
-        This is crucial for the filters to work without throwing 500 errors.
+        Crucial for sorting and filtering to work without 500 errors.
         """
         return Offer.objects.annotate(
             min_price=Min('details__price'),
@@ -92,13 +96,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Order.objects.none()
 
     def get_permissions(self):
-        """
-        Permissions based on requirements:
-        - Create: Customer only
-        - Update: Business Owner only (status updates)
-        - Delete: Admin/Staff only
-        - List/Retrieve: Participants only
-        """
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()] 
         if self.action == 'destroy':
@@ -120,11 +117,16 @@ class ReviewViewSet(viewsets.ModelViewSet):
     ordering_fields = ['updated_at', 'rating']
 
     def get_permissions(self):
+        """
+        Requirement: Non-authenticated users should receive 401 (Not Authorized).
+        Therefore, we do NOT use IsAuthenticatedOrReadOnly as default.
+        """
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()]
         if self.action in ['update', 'partial_update', 'destroy']:
             return [IsAuthenticated(), IsOwnerOrReadOnly()]
-        return [IsAuthenticatedOrReadOnly()]
+        # Default strict authentication to ensure 401 on GET for anon users
+        return [IsAuthenticated()]
 
 
 class BaseInfoView(APIView):
