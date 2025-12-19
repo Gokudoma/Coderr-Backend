@@ -10,8 +10,8 @@ class OfferDetailSerializer(serializers.ModelSerializer):
     Serializer for the OfferDetail endpoint and nested write operations.
     Includes strict validation to ensure 400 Bad Request on invalid input.
     """
-    url = serializers.HyperlinkedIdentityField(view_name='offerdetail-detail', read_only=True)
     
+    # Validation: Ensure positive numbers
     price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01)
     delivery_time_in_days = serializers.IntegerField(min_value=1)
     revisions = serializers.IntegerField(min_value=-1)
@@ -20,7 +20,7 @@ class OfferDetailSerializer(serializers.ModelSerializer):
         model = OfferDetail
         fields = [
             'id', 'title', 'revisions', 'delivery_time_in_days', 
-            'price', 'features', 'offer_type', 'url'
+            'price', 'features', 'offer_type'
         ]
         extra_kwargs = {
             'offer_type': {'required': True}
@@ -131,7 +131,7 @@ class OfferSerializer(BaseOfferSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Ensure context is passed for HyperlinkedIdentityField
+        # Ensure context is passed for nested serializers if needed
         data['details'] = OfferDetailSerializer(
             instance.details.all(), 
             many=True, 
