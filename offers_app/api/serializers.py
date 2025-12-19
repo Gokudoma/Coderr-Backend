@@ -12,7 +12,6 @@ class OfferDetailSerializer(serializers.ModelSerializer):
     """
     url = serializers.HyperlinkedIdentityField(view_name='offerdetail-detail', read_only=True)
     
-    # Validation: Ensure positive numbers
     price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01)
     delivery_time_in_days = serializers.IntegerField(min_value=1)
     revisions = serializers.IntegerField(min_value=-1)
@@ -23,10 +22,14 @@ class OfferDetailSerializer(serializers.ModelSerializer):
             'id', 'title', 'revisions', 'delivery_time_in_days', 
             'price', 'features', 'offer_type', 'url'
         ]
-        # Important: Force offer_type to be required to trigger 400 error if missing
         extra_kwargs = {
             'offer_type': {'required': True}
         }
+
+    def validate(self, data):
+        if 'offer_type' not in data:
+            raise ValidationError({"offer_type": "This field is required."})
+        return data
 
 
 class OfferDetailLinkSerializer(serializers.ModelSerializer):
@@ -51,11 +54,8 @@ class BaseOfferSerializer(serializers.ModelSerializer):
     min_delivery_time = serializers.SerializerMethodField()
 
     def get_min_price(self, obj):
-        # Fix for "Not a Number" / NaN error:
-        # If the object already has the annotated value, use it.
         if hasattr(obj, 'min_price') and obj.min_price is not None:
             return obj.min_price
-        # Fallback calculation if annotation is missing
         val = obj.details.aggregate(Min('price'))['price__min']
         return val if val is not None else 0.0
 
@@ -90,7 +90,7 @@ class OfferListSerializer(BaseOfferSerializer):
         }
 
 
-class OfferSerializer(serializers.ModelSerializer):
+class OfferSerializer(BaseOfferSerializer):
     """
     Serializer for creating (POST) and updating (PATCH) offers.
     Returns full nested details in the response.
@@ -101,7 +101,7 @@ class OfferSerializer(serializers.ModelSerializer):
         model = Offer
         fields = [
             'id', 'user', 'title', 'image', 'description', 'created_at', 
-            'updated_at', 'details'
+            'updated_at', 'details', 'min_price', 'min_delivery_time'
         ]
         read_only_fields = ['user', 'created_at', 'updated_at']
 
@@ -130,9 +130,8 @@ class OfferSerializer(serializers.ModelSerializer):
         return instance
 
     def to_representation(self, instance):
-        # We need to pass the context so nested Hyperlinked fields work correctly
         data = super().to_representation(instance)
-        data['id'] = instance.id
+        # Ensure context is passed for HyperlinkedIdentityField
         data['details'] = OfferDetailSerializer(
             instance.details.all(), 
             many=True, 

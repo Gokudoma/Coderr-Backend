@@ -6,7 +6,6 @@ from rest_framework import filters, viewsets
 from rest_framework.permissions import (
     AllowAny, 
     IsAuthenticated, 
-    IsAuthenticatedOrReadOnly, 
     IsAdminUser 
 )
 from rest_framework.response import Response
