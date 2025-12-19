@@ -76,8 +76,9 @@ class UserProfileTests(APITestCase):
         """
         Ensure valid credentials return a token.
         """
+
         data = {
-            "username": "test@example.com", 
+            "username": "testuser", 
             "password": "password123"
         }
         response = self.client.post(self.login_url, data, format='json')
@@ -139,7 +140,7 @@ class UserUnhappyPathTests(APITestCase):
             "username": "fail",
             "email": "fail@test.com",
             "password": "password123",
-            "repeated_password": "wrongpassword", # Mismatch
+            "repeated_password": "wrongpassword", 
             "type": "customer"
         }
         response = self.client.post(url, data, format='json')
